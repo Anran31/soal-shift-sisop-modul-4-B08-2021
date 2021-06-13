@@ -215,6 +215,16 @@ Kemudian untuk poin selanjutnya, yaitu membuat log khusus ketika terjadi pembuat
         return 0;
     }
 ```
+#### Screenshot
+Kiri = Nama file dalam folder AtoZ_aaa pada /home/[USER]/Downloads,
+Kanan = Nama file dalam folder AtoZ_aaa pada filesystem
+![1a](/img/1a.JPG)
+
+Jika awalan AtoZ_ pada nama folder dihilangkan
+![1b](/img/1b.JPG)
+
+Log saat terjadi pembentukan folder terenkripsi
+![1c](/img/1c.JPG)
 
 ## Soal 2
 
@@ -314,3 +324,8 @@ contoh pemanggilan pada rmdir:
         return 0;
     }
 ```
+
+#### Screenshot
+
+Log pada saat filesystem dijalankan
+![4](/img/4.JPG)
