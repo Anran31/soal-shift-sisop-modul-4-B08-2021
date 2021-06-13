@@ -246,6 +246,9 @@ Suatu_File.txt.0002
 
 Ketika diakses melalui filesystem hanya akan muncul Suatu_File.txt
 
+#### Kendala
+Masih bingung cara membedakan cara enkripsi dan dekripsi karena menggunakan 2 metode yang berbeda. Kemudian juga masih bingung cara memecah satu file menjadi beberapa file yang lebih kecil. 
+
 ## Soal 3
 
 
@@ -262,6 +265,9 @@ Karena Sin masih super duper gabut akhirnya dia menambahkan sebuah fitur lagi pa
 **e.** Pada direktori spesial semua nama file (tidak termasuk ekstensi) pada fuse akan berubah menjadi lowercase insensitive dan diberi ekstensi baru berupa nilai desimal dari binner perbedaan namanya.
 
 Contohnya jika pada direktori asli nama filenya adalah “FiLe_CoNtoH.txt” maka pada fuse akan menjadi “file_contoh.txt.1321”. 1321 berasal dari biner 10100101001.
+
+#### Kendala
+Masih bingung maksud dari poin d dimana "masing-masing aturan mereka tetap berjalan pada direktori di dalamnya".
 
 ## Soal 4
 
