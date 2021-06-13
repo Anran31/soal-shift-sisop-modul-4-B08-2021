@@ -14,6 +14,208 @@ Di suatu jurusan, terdapat admin lab baru yang super duper gabut, ia bernama Sin
 
 **e.** Metode encode pada suatu direktori juga berlaku terhadap direktori yang ada di dalamnya.(rekursif)
 
+#### Jawab
+Untuk menyelesaikan soal no 1, maka hal yang harus dilakukan adalah melakukan perubahan pada fungsi readdir. Pada fungsi readdir, jika di dalam path folder yang akan dibuka terdapat folder yang berawalan `AtoZ_`, maka ketika membaca isi dari folder tersebut, seluruh nama file dan folder yang akan disimpan ke dalam folder akan terenkripsi berdasarkan Atbash Cypher.
+
+```c
+    static int xmp_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *fi)
+    {
+        char fpath[1024] = {0};
+        int change = 0;
+        change = getfpath(path,fpath,0);
+        int res = 0;
+        printf("readdir path = %s\nfpath = %s\n",path,fpath);
+        DIR *dp;
+        struct dirent *de;
+        (void) offset;
+        (void) fi;
+
+        dp = opendir(fpath);
+
+        if (dp == NULL) return -errno;
+
+        while ((de = readdir(dp)) != NULL) {
+            struct stat st;
+
+            memset(&st, 0, sizeof(st));
+
+            st.st_ino = de->d_ino;
+            st.st_mode = de->d_type << 12;
+            if(change)
+            {
+                char nameCopy[1024] = {0};
+                strcpy(nameCopy,de->d_name);
+                if(S_ISDIR(st.st_mode))
+                {
+                    Atbash(nameCopy,0);
+                }
+                else Atbash(nameCopy,1);
+                res = (filler(buf, nameCopy, &st, 0));
+                //printf("readdir nameCopy = %s\n",nameCopy);
+            }
+            else{
+                res = (filler(buf, de->d_name, &st, 0));
+                //printf("readdir de->d_name = %s\n",de->d_name);
+            }
+            if(res!=0) break;
+        }
+
+        closedir(dp);
+        const char *desc[] = {path};
+        fsLog("INFO","READDIR",1, desc);
+        return 0;
+    }
+```
+
+Untuk mengetahui apakah di path yang akan terbuka terdapat suatu folder yang berawalan `AtoZ_`, kami membuat suatu fungsi bernama `getfpath()` yang dimana akan mereturn sebuah nilai berupa 0 jika di dalam path tidak terdapat `AtoZ_` dan 1 jika sebaliknya. Nilai tersebut akan digunakan dalam perulangan while saat membaca suatu direktori dan jika nilainya satu, maka nama filenya akan dienkripsi menggunakan Atbash Cypher. Fungsi `getfpath()` juga digunakan untuk mendapatkan path dari folder asli yang digunakan.
+
+```c
+    int getfpath(const char *path, char *fpath, int isFile)
+    {
+        int change = 0;
+        if(strcmp(path,"/") == 0)
+        {
+            path=dirpath;
+
+            sprintf(fpath,"%s",path);
+        }
+        else
+        {
+            strcat(fpath,dirpath);
+            char pathCopy[1024] = {0};
+            strcpy(pathCopy,path);
+
+            char *lastPos = strrchr(path,'/');
+            *lastPos++;
+            const char *p="/";
+            char *a,*b;
+            for( a=strtok_r(pathCopy,p,&b) ; a!=NULL ; a=strtok_r(NULL,p,&b) ) {
+                if(!change)
+                {
+                    strcat(fpath,"/");
+                    strcat(fpath,a);
+                }
+                else
+                {
+                    char changeName[1024] = {0};
+                    strcpy(changeName,a);
+                    if(!strcmp(changeName,lastPos) && isFile) Atbash(changeName,1);
+                    else Atbash(changeName,0);
+                    strcat(fpath,"/");
+                    strcat(fpath,changeName);
+                }
+                if(strncmp(a,"AtoZ_",5) == 0) change = 1;
+                //printf("a = %s change = %d\n",a,change);
+            }
+        }
+
+        return change;
+        printf("getfpath fpath = %s\n",fpath);
+    }
+```
+
+Fungsi `getfpath()` melakukan iterasi pada seluruh folder yang ada di path menggunakan fungsi `strtok_r()` yang membagi path menjadi token berdasarkan tanda `/`, kemudian setiap token dicek apakan 5 huruf terawalnya merupakan `AtoZ_` atau bukan. Jika iya, maka token-token selanjutnya akan diubah menggunakan Atbash Cypher.
+
+```c
+    void Atbash(char *name, int isFile)
+    {
+        int change = 1;
+        for(int i = 0; i<strlen(name); i++)
+        {
+            if(name[i] == '.' && isFile) change=0;
+            if(change)
+            {
+                if(name[i]>='A'&&name[i]<='Z') name[i] = 'Z'+'A'-name[i];
+                if(name[i]>='a'&&name[i]<='z') name[i] =  'z'+'a'-name[i];
+            }
+        }
+    }
+```
+
+Fungsi `getfpath()` tidak hanya dipanggil pada `readdir` saja, tetapi hampir seluruh system call fuse yang lainnya juga.
+
+Kemudian untuk poin selanjutnya, yaitu membuat log khusus ketika terjadi pembuatan atau rename direktori menjadi terenkripsi (awalan `AtoZ_`) akan dibuat sebuah log khusus. Hal tersebut dapat diselesaikan dengan membuat fungsi baru yaitu `AtoZLog()` yang akan membuat log tersebut. Fungsi `AtoZLog()` akan dipanggil pada system call fuse `mkdir` jika direktori yang dibuat terdapat awalan `AtoZ_` atau `rename` jika direktori dirubah namanya menjadi terdapat awalan `AtoZ_`.
+
+```c
+    void AtoZLog(char *cmd, char *firstPath, char *secondPath)
+    {
+        FILE *f = fopen(AtoZLogPath, "a");
+
+        if(!strcmp(cmd,"RENAME"))
+        {
+            fprintf(f, "%s::%s -> %s\n", cmd, firstPath, secondPath);
+        }
+        else if(!strcmp(cmd,"MKDIR"))
+        {
+            fprintf(f, "%s::%s\n", cmd, firstPath);
+        }
+
+        fclose(f);
+    }
+```
+
+```c
+    static int xmp_rename(const char *from, const char *to)
+    {
+        char fullFrom[1024],fullTo[1024];
+        if(strcmp(from,"/") == 0)
+        {
+            from=dirpath;
+            sprintf(fullFrom,"%s",from);
+        }
+        else sprintf(fullFrom, "%s%s",dirpath,from);
+
+        if(strcmp(to,"/") == 0)
+        {
+            to=dirpath;
+            sprintf(fullTo,"%s",to);
+        }
+        else sprintf(fullTo, "%s%s",dirpath,to);
+
+        int res;
+        printf("rename from = %s to = %s\n",fullFrom, fullTo);
+        res = rename(fullFrom, fullTo);
+        DIR *dp = opendir(fullTo);
+        char *lastSlash = strrchr(fullTo,'/');
+        char *toAtoZ_ = strstr(lastSlash-1,"/AtoZ_");
+
+
+        if(toAtoZ_ != NULL && dp != NULL) 
+        {
+            printf("a dir renamed to /AtoZ_\n");
+            closedir(dp);
+            AtoZLog("RENAME",fullFrom,fullTo);
+        }
+        if (res == -1)
+            return -errno;
+        
+        const char *desc[] = {from,to};
+        fsLog("INFO","RENAME",2, desc);
+        return 0;
+    }
+```
+
+```c
+    static int xmp_mkdir(const char *path, mode_t mode)
+    {
+        char fpath[1024] = {0};
+        getfpath(path,fpath,0);
+
+        int res;
+        char *lastSlash = strrchr(fpath,'/');
+        char *toAtoZ_ = strstr(lastSlash-1,"/AtoZ_");
+
+        res = mkdir(fpath, mode);
+        if(toAtoZ_ != NULL) AtoZLog("MKDIR",fpath, "");
+        if (res == -1)
+        return -errno;
+
+        const char *desc[] = {path};
+        fsLog("INFO","MKDIR",1, desc);
+        return 0;
+    }
+```
+
 ## Soal 2
 
 Selain itu Sei mengusulkan untuk membuat metode enkripsi tambahan agar data pada komputer mereka semakin aman. Berikut rancangan metode enkripsi tambahan yang dirancang oleh Sei
@@ -72,3 +274,5 @@ Level : Level logging, dd : 2 digit tanggal, mm : 2 digit bulan, yyyy : 4 digit 
 
 INFO::28052021-10:00:00:CREATE::/test.txt
 INFO::28052021-10:01:00:RENAME::/test.txt::/rename.txt
+
+### Jawab
