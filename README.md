@@ -276,3 +276,41 @@ INFO::28052021-10:00:00:CREATE::/test.txt
 INFO::28052021-10:01:00:RENAME::/test.txt::/rename.txt
 
 ### Jawab
+
+Untuk menyelesaikan soal ini, maka hanya perlu membuat satu fungsi `fsLog()` yang akan dipanggil pada setiap system call yang dipanggil. fungsi `fsLog()` menerima parameter Level, command, jumlah deskripsi tambahan, serta deskripsi yang diperlukan.
+
+```c
+    void fsLog(char *level, char *cmd,int descLen, const char *desc[])
+    {
+        FILE *f = fopen(FSLogPath, "a");
+        time_t now;
+        time ( &now );
+        struct tm * timeinfo = localtime (&now);
+        fprintf(f, "%s::%s::%02d%02d%04d-%02d:%02d:%02d",level,cmd,timeinfo->tm_mday,timeinfo->tm_mon+1,timeinfo->tm_year+1900,timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+        for(int i = 0; i<descLen; i++)
+        {
+            fprintf(f,"::%s",desc[i]);
+        }
+        fprintf(f,"\n");
+        fclose(f);
+    }
+```
+
+contoh pemanggilan pada rmdir:
+
+```c
+    static int xmp_rmdir(const char *path)
+    {
+        char fpath[1024] = {0};
+        getfpath(path,fpath,0);
+        int res;
+
+        res = rmdir(fpath);
+        if (res == -1)
+        return -errno;
+
+        const char *desc[] = {path};
+        fsLog("WARNING","RMDIR",1, desc);
+        return 0;
+    }
+```
